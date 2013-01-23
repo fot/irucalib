@@ -1,0 +1,14 @@
+IRUCALIB.txt
+Matlab_Greta.tar.gz
+Python/Aoatter/Archive/
+Python/Getirudata/Archive/
+Python/Getirudata/i29c/
+Matlab/Matpycal_08/
+Matlab/Matpycal_09/
+Matlab/Matpycal_10/MATPYCAL10_33c/Archive/
+Matlab/Matpycal_10/MATPYCAL10_33c/i29c/
+*.pyc
+Python/Aoatter/arraydata.py
+Python/Aoatter/quatfunc.py
+Python/Getirudata/aoatter_bad_times.dat
+
