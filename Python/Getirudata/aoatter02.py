@@ -4,33 +4,88 @@ aoatter.py
 
 Describe what this does.
 """
+import argparse
+import pprint
 
 import matplotlib.pyplot as plt
 import numpy as np
 
 import Ska.engarchive.fetch as fetch
 from Ska.Matplotlib import plot_cxctime
-import Chandra.Time
+from Chandra.Time import DateTime
 
 from arraydata import getstrstartstop
 
-print 'Running aoatter.py'
+
+def get_opt():
+    parser = argparse.ArgumentParser(description='Read attitude errors')
+    parser.add_argument('--start', type=str,
+                        default='2012:336',
+                        help='Processing start date (DateTime format, default=2012:336)')
+    parser.add_argument('--stop', type=str,
+                        default='2013:021',
+                        help='Processing stop date (DateTime format, default=2013:021)')
+    parser.add_argument('--bad-aoatter-limit', type=float,
+                        default=1.0,
+                        help='Bad AOATTER limit (arcsec, default=1.0)')
+    parser.add_argument('--settle-time', type=float,
+                        default=300.0,
+                        help='Kalman settling time (sec, default=300)')
+    parser.add_argument('--dump-damp', type=float,
+                        default=180.0,
+                        help='Dump damping time (sec, default=180)')
+    parser.add_argument('--adj-kalm', type=str,
+                        default='True',
+                        help='Adjust start time of NPNT to KALM time + settle time (default=True)')
+    parser.add_argument('--filter-aoatter-bad-times', type=str,
+                        default='True',
+                        help='Remove AOATTER bad times (default=True)')
+    parser.add_argument('--adj-mups-dump', type=str,
+                        default='True',
+                        help='Adjust  MUPS firing end time to remove damping motion (default=True)')
+    parser.add_argument('--filter-mups-dump', type=str,
+                        default='True',
+                        help='Remove MUPS dumps (default=True)')
+    parser.add_argument('--filter-rwbi-disable', type=str,
+                        default='True',
+                        help='Remove RW bias disable (SCS-107) (default=True)')
+    parser.add_argument('--save-plots', type=str,
+                        default='False',
+                        help='Write plots to png files (default=False)')
+    opt = parser.parse_args()
+    return opt
+
+
+def string_to_bool(val):
+    val = val.lower()
+    if val in ('n', 'f', 'false'):
+        out = False
+    elif val in ('y', 't', 'true'):
+        out = True
+    else:
+        raise ValueError('Boolean flag value "{}" must be one of Y, N, T, F, True, or False'
+                         .format(val))
+    return out
+
+# Get run time options and process accordingly
+opt = get_opt()
+
+tstart = DateTime(opt.start).date
+tstop = DateTime(opt.stop).date
 
 # aoatter bad if > bad_aoatter_limit, after other effects removed
-bad_aoatter_limit = np.radians(1.0 / 3600)
-settle_time = 300.0  # Kalman settling time in sec
-radpersec2degperhr = 180.0 / np.pi * 3600  # rate units multiplier
-dump_damp = 180.0  # dump damping time (sec)
+bad_aoatter_limit = np.radians(opt.bad_aoatter_limit / 3600)
 
-tstart = '2012:336:00:00:00.000'
-tstop = '2013:021:00:00:00.000'
+adj_kalm = string_to_bool(opt.adj_kalm)
+filter_aoatter_bad_times = string_to_bool(opt.filter_aoatter_bad_times)
+adj_mups_dump = string_to_bool(opt.adj_mups_dump)
+filter_mups_dump = string_to_bool(opt.filter_mups_dump)
+filter_rwbi_disable = string_to_bool(opt.filter_rwbi_disable)
+save_plots = string_to_bool(opt.save_plots)
 
-adj_kalm = True  # Adjust start time of NPNT to KALM time + settle time, if present
-filter_aoatter_bad_times = True  # Remove AOATTER bad times
-adj_mups_dump = True  # Adjust  MUPS firing end time to remove damping motion
-filter_mups_dump = True  # Remove MUPS dumps
-filter_rwbi_disable = True  # Remove RW bias disable (SCS-107)
-save_plots = False  # Write plots to png file
+# Start processing
+print 'Running aoatter.py with options:'
+pprint.pprint(vars(opt))
 
 # Read PCAD mode flag and get NPNT & NMAN start and stop times
 print 'Requested time interval is %s to %s' % (tstart, tstop)
@@ -38,8 +93,8 @@ print 'Fetch AOPCADMD and AOACASEQ'
 data = fetch.MSIDset(['AOPCADMD', 'AOACASEQ'], tstart, tstop, filter_bad=True)
 aopcadmd_vals = np.array(data['AOPCADMD'].vals)
 aopcadmd_times = data['AOPCADMD'].times[0:]
-print 'PCAD mode times %s to %s' % (Chandra.Time.DateTime(aopcadmd_times[0]).date,
-                                    Chandra.Time.DateTime(aopcadmd_times[-1]).date)
+print 'PCAD mode times %s to %s' % (DateTime(aopcadmd_times[0]).date,
+                                    DateTime(aopcadmd_times[-1]).date)
 aoacaseq_vals = np.array(data['AOACASEQ'].vals)
 aoacaseq_times = data['AOACASEQ'].times[0:]
 (npnt_indices, npnt_times) = getstrstartstop(aopcadmd_vals, aopcadmd_times, 'NPNT')
@@ -59,7 +114,7 @@ if adj_kalm:
         kalm_time_in_npnt = ((npnt_times[0, n] < kalm_times[0, :])
                              & (kalm_times[0, :] < npnt_times[1, n]))
         if kalm_time_in_npnt.any():
-            npnt_times[0, n] = kalm_times[0, kalm_time_in_npnt].max() + settle_time
+            npnt_times[0, n] = kalm_times[0, kalm_time_in_npnt].max() + opt.settle_time
 
 # Read PCAD attitude errors and times, compute YZ error
 print 'Fetch AOATTER1, AOATTER2, and AOATTER3'
@@ -68,8 +123,8 @@ aoatter = np.array([data['AOATTER1'].times[0:],  # time of attitude error
                     data['AOATTER1'].vals,  # roll attitude error
                     data['AOATTER2'].vals,  # pitch attitude error
                     data['AOATTER3'].vals])  # yaw attitude error
-print 'Attitude error times %s to %s' % (Chandra.Time.DateTime(aoatter[0, 0]).date,
-                                         Chandra.Time.DateTime(aoatter[0, -1]).date)
+print 'Attitude error times %s to %s' % (DateTime(aoatter[0, 0]).date,
+                                         DateTime(aoatter[0, -1]).date)
 aoatter_num = aoatter.shape[1]
 print 'AOATTER number = %d' % aoatter_num
 aoatteryz = np.sqrt(aoatter[2, :] ** 2 + aoatter[3, :] ** 2)
@@ -122,7 +177,7 @@ dump_num = dump_indices.shape[1]
 print 'Number of momentum dumps = %d' % dump_num
 # Adjust  MUPS firing end time to remove damping motion
 if adj_mups_dump:
-    dump_times[1, :] = dump_times[1, :] + dump_damp
+    dump_times[1, :] = dump_times[1, :] + opt.dump_damp
 (rwbi_indices, rwbi_times) = getstrstartstop(aorwbias_vals, aorwbias_times, 'DISA')
 rwbi_num = rwbi_indices.shape[1]
 print 'Number of RW bias disables = %d' % rwbi_num
@@ -179,8 +234,8 @@ if filter_aoatter_bad_times:
     stopstr = np.array([x[1] for x in timelist])
     num_bad = startstr.shape[0]
     bad_times = np.zeros((2, num_bad))
-    bad_times[0, :] = Chandra.Time.DateTime(startstr).secs
-    bad_times[1, :] = Chandra.Time.DateTime(stopstr).secs
+    bad_times[0, :] = DateTime(startstr).secs
+    bad_times[1, :] = DateTime(stopstr).secs
     aoatter_after_bad_start = np.zeros(aoatter_num, dtype=bool)  # pre-allocate array
     aoatter_before_bad_stop = np.zeros(aoatter_num, dtype=bool)  # pre-allocate array
     aoatter_in_bad = np.zeros(aoatter_num, dtype=bool)  # pre-allocate array
