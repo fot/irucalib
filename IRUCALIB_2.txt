@@ -20,8 +20,7 @@ alias xt "xterm -bg black -fg green &"
   - Subsequent steps are executed in this window
 
 * Update aoatter_bad_times.dat file if needed
-  - cd ~/IRUCALIB/Python/Aoatter
-  - edit start and stop times (tstart & tstop) in aoatter02.py and save & close file
+  - From the root of the irucalib project, cd Python/Getirudata
   - start ipython using "pylab" alias
   - in ipython %run aoatter02.py
   - after aoatter02 is finished ("Done!"), select figure 4
@@ -32,7 +31,7 @@ alias xt "xterm -bg black -fg green &"
   - exit editors and ipython
 
 * Get preprocessed IRU data from ska archive
-  - cd ~/IRUCALIB/Python/Getirudata
+  - From the root of the irucalib project, cd Python/Getirudata
   - interval 29 is selected by default
   - edit getirudata33c.py for times and flags for selected interval
     > confirm selected interval in Initialization section
